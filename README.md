@@ -1,341 +1,370 @@
-# 🌤️ Pipeline ETL - Dados Climáticos de Uiraúna/PB
+# Modern Data Stack — Pipeline ETL Template
 
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-luisfernando--eng-0077B5?style=flat&logo=linkedin)](https://www.linkedin.com/in/luisfernando-eng/)
-[![Instagram](https://img.shields.io/badge/Instagram-@luis__fernando__jv__eng-E4405F?style=flat&logo=instagram)](https://www.instagram.com/luis_fernando_jv_eng)
-[![Gmail](https://img.shields.io/badge/Gmail-luizfer.12321@gmail.com-D14836?style=flat&logo=gmail)](mailto:luizfer.12321@gmail.com)
+[![GitHub](https://img.shields.io/badge/GitHub-Lucaslssoares-181717?style=flat&logo=github)](https://github.com/Lucaslssoares)
+[![Gmail](https://img.shields.io/badge/Gmail-solareslucas@gmail.com-D14836?style=flat&logo=gmail)](mailto:solareslucas@gmail.com)
 
-> Pipeline ETL automatizado para coleta, transformação, armazenamento e análise de dados meteorológicos em tempo real da cidade de Uiraúna - PB.
-
----
-
-## 📋 Índice
-
-- [Sobre o Projeto](#-sobre-o-projeto)
-- [Arquitetura do Pipeline](#-arquitetura-do-pipeline)
-- [Stack Tecnológica](#-stack-tecnológica)
-- [Estrutura do Projeto](#-estrutura-do-projeto)
-- [Pré-requisitos](#-pré-requisitos)
-- [Instalação e Configuração](#-instalação-e-configuração)
-- [Como Executar](#-como-executar)
-- [Detalhamento das Etapas](#-detalhamento-das-etapas)
-- [Análise e Visualização de Dados](#-análise-e-visualização-de-dados)
-- [Troubleshooting](#-troubleshooting)
-- [Contato](#-contato)
+> Template de pipeline ETL modular e reutilizável construído sobre Apache Airflow, dbt, PostgreSQL e Docker. Projetado para ser adaptado a qualquer fonte de dados ou domínio de negócio.
 
 ---
 
-## 🎯 Sobre o Projeto
+## Índice
 
-Este projeto tem como objetivo demonstrar a construção de um **pipeline ETL completo** aplicado a dados reais, utilizando boas práticas de Engenharia de Dados.
-
-O pipeline coleta dados meteorológicos da API OpenWeatherMap **a cada hora**, transforma os dados brutos em um formato estruturado e os armazena em um banco de dados PostgreSQL — servindo como base para análises e visualizações exploratórias.
-
-A cidade escolhida foi **Uiraúna - PB**, no sertão paraibano, região com clima semiárido e grande variação de temperatura ao longo do dia.
+- [Sobre o Projeto](#sobre-o-projeto)
+- [Arquitetura](#arquitetura)
+- [Stack Tecnológica](#stack-tecnológica)
+- [Estrutura do Projeto](#estrutura-do-projeto)
+- [Pré-requisitos](#pré-requisitos)
+- [Instalação e Configuração](#instalação-e-configuração)
+- [Como Executar](#como-executar)
+- [Usando o dbt](#usando-o-dbt)
+- [pgAdmin](#pgadmin)
+- [Como Adaptar para seu Tema](#como-adaptar-para-seu-tema)
+- [Testes](#testes)
+- [Troubleshooting](#troubleshooting)
 
 ---
 
-## 🏗️ Arquitetura do Pipeline
+## Sobre o Projeto
 
-### Diagrama Visual
+Este repositório implementa um **Modern Data Stack** completo e containerizado, servindo como base para pipelines ETL de qualquer domínio.
 
-![Diagrama ETL - Pipeline Climático Uiraúna/PB](assets/ETL.jpg)
+O template já entrega pronto:
+
+- Orquestração com **Apache Airflow** (DAG genérica configurável)
+- Camada de transformação SQL com **dbt** (staging + marts)
+- Armazenamento em **PostgreSQL 16**
+- Interface visual com **pgAdmin 4**
+- Conexão com **Airbyte Cloud** via porta 5432 exposta
+- Testes unitários com **pytest**
+- Logging centralizado e configuração via variáveis de ambiente
 
 ---
+
+## Arquitetura
 
 ```
-OpenWeatherMap API
-        │
-        ▼
-  ┌─────────────┐
-  │   EXTRACT   │  → Requisição HTTP → weather_data.json
-  └─────────────┘
-        │
-        ▼
-  ┌─────────────┐
-  │  TRANSFORM  │  → Normalização, renomeação, conversão de timestamps → temp_data.parquet
-  └─────────────┘
-        │
-        ▼
-  ┌─────────────┐
-  │    LOAD     │  → Inserção no PostgreSQL (tabela: uirauna_weather)
-  └─────────────┘
-        │
-        ▼
-  ┌─────────────┐
-  │   ANÁLISE   │  → Jupyter Notebook com visualizações e insights
-  └─────────────┘
-
-  Orquestração: Apache Airflow (schedule: a cada 1 hora)
-  Infraestrutura: Docker + Docker Compose
+┌─────────────────────────────────────────────────────────┐
+│                     ORQUESTRAÇÃO                        │
+│                  Apache Airflow :8080                   │
+└──────────────────────┬──────────────────────────────────┘
+                       │
+          ┌────────────┼────────────┐
+          ▼            ▼            ▼
+    ┌──────────┐ ┌──────────┐ ┌──────────┐
+    │ EXTRACT  │ │TRANSFORM │ │   LOAD   │
+    │ API REST │ │  Pandas  │ │ SQLAlch. │
+    │  → JSON  │ │ → Parquet│ │→Postgres │
+    └──────────┘ └──────────┘ └──────────┘
+                                    │
+                       ┌────────────┴────────────┐
+                       ▼                         ▼
+              ┌──────────────┐         ┌──────────────────┐
+              │   dbt :exec  │         │  pgAdmin  :5050  │
+              │  staging SQL │         │  Interface visual │
+              │  marts  SQL  │         └──────────────────┘
+              └──────────────┘
+                       │
+                       ▼
+              ┌──────────────────┐
+              │  PostgreSQL :5432│ ← Airbyte Cloud
+              └──────────────────┘
 ```
+
+**Fluxo de dados:**
+1. **Extract** — requisição HTTP GET para API configurada, salva `raw_data.json`
+2. **Transform** — normalização, renomeação e tipagem via Pandas, salva `temp_data.parquet`
+3. **Load** — inserção no PostgreSQL (modo append, acumula histórico)
+4. **dbt** — transforma os dados raw em camadas staging (views) e marts (tables)
 
 ---
 
-## 🛠️ Stack Tecnológica
+## Stack Tecnológica
 
-### Core
-
-- **Python 3.12+** — Linguagem principal
-- **Apache Airflow 2.9.2** — Orquestração do pipeline
-- **PostgreSQL 16** — Banco de dados relacional
-- **Docker & Docker Compose** — Containerização
-
-### Bibliotecas Python
-
-- **pandas** — Manipulação e transformação de dados
-- **requests** — Requisições HTTP para a API
-- **SQLAlchemy** — Conexão com o banco de dados
-- **psycopg2** — Driver PostgreSQL
-- **python-dotenv** — Gerenciamento de variáveis de ambiente
-- **pyarrow** — Suporte ao formato Parquet
-- **matplotlib / seaborn** — Visualização de dados
-- **jupyter** — Análise exploratória interativa
+| Camada | Tecnologia | Versão |
+|---|---|---|
+| Orquestração | Apache Airflow | 2.9.2 |
+| Transformação Python | Pandas + PyArrow | 3.x |
+| Transformação SQL | dbt-postgres | 1.9.0 |
+| Banco de dados | PostgreSQL | 16 |
+| Interface DB | pgAdmin 4 | latest |
+| Containerização | Docker + Compose | v2 |
+| Linguagem | Python | 3.12+ |
+| Testes | pytest | 8.x |
 
 ---
 
-## 📁 Estrutura do Projeto
+## Estrutura do Projeto
 
 ```
-pipeline_weather/
-├── config/
-│   └── .env                  # Variáveis de ambiente (não versionado)
+modern-data-stack/
+│
+├── config/                          # Configurações centralizadas
+│   ├── pipeline_config.py           # ← PREENCHA AQUI ao definir o tema
+│   ├── .env                         # Credenciais (não versionado)
+│   ├── dbt/
+│   │   └── profiles.yml             # Conexão dbt → PostgreSQL (via env vars)
+│   └── pgadmin/
+│       └── servers.json             # Conexão pgAdmin (automática)
+│
 ├── dags/
-│   └── weather_dag.py        # Definição da DAG no Airflow
-├── data/
-│   ├── weather_data.json     # Dados brutos extraídos da API
-│   └── temp_data.parquet     # Dados transformados (intermediário)
-├── logs/                     # Logs do Airflow
-├── notebooks/
-│   └── analysis_data.ipynb   # Análise e visualização dos dados
+│   └── etl_dag.py                   # DAG Airflow genérica
+│
 ├── src/
-│   ├── extract_data.py       # Etapa de extração
-│   ├── transform_data.py     # Etapa de transformação
-│   └── load_data.py          # Etapa de carga
-├── docker-compose.yaml       # Definição dos serviços Docker
-├── .env.example              # Exemplo de variáveis de ambiente
-└── README.md
+│   ├── common/
+│   │   ├── logger.py                # get_logger() centralizado
+│   │   └── database.py              # get_engine() SQLAlchemy
+│   ├── extract_data.py              # Etapa Extract
+│   ├── transform_data.py            # Etapa Transform
+│   └── load_data.py                 # Etapa Load
+│
+├── dbt/
+│   ├── dbt_project.yml
+│   └── models/
+│       ├── schema.yml
+│       ├── staging/
+│       │   ├── sources.yml          # Declara tabela raw como fonte
+│       │   └── stg_template.sql     # Template de staging layer
+│       └── marts/
+│           └── mart_template.sql    # Template de mart layer
+│
+├── tests/
+│   └── unit/
+│       ├── test_extract.py          # Testes da etapa Extract
+│       └── test_transform.py        # Testes da etapa Transform
+│
+├── notebooks/
+│   └── analysis_data.ipynb          # Análise exploratória
+│
+├── docker-compose.yaml              # Todos os serviços
+├── main.py                          # Execução local (sem Docker)
+├── pyproject.toml                   # Dependências e configuração pytest
+└── .env.example                     # Template de variáveis de ambiente
 ```
 
 ---
 
-## ✅ Pré-requisitos
+## Pré-requisitos
 
-- [Docker](https://docs.docker.com/get-docker/) e [Docker Compose](https://docs.docker.com/compose/)
-- Conta gratuita na [OpenWeatherMap](https://openweathermap.org/api) para obter a API Key
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) instalado e em execução
+- Conta na API que será consumida (definida ao escolher o tema)
 - Git
 
 ---
 
-## 🚀 Instalação e Configuração
+## Instalação e Configuração
 
-### 1️⃣ Clone o Repositório
+### 1. Clone o repositório
 
 ```bash
-git clone https://github.com/seu-usuario/pipeline_weather.git
-cd pipeline_weather
+git clone https://github.com/Lucaslssoares/modern-data-stack.git
+cd modern-data-stack
 ```
 
-### 2️⃣ Obtenha sua API Key
-
-1. Acesse [openweathermap.org](https://openweathermap.org/api)
-2. Crie uma conta gratuita
-3. Gere sua API Key no dashboard
-
-### 3️⃣ Configure as Variáveis de Ambiente
-
-Crie o arquivo `config/.env` baseado no exemplo:
+### 2. Crie o arquivo de credenciais
 
 ```bash
-mkdir -p config
+# Windows
+copy .env.example config\.env
+
+# Linux/Mac
 cp .env.example config/.env
 ```
 
-Edite o arquivo com suas credenciais:
+Edite `config/.env`:
 
 ```env
-# config/.env
-
 API_KEY=sua_chave_api_aqui
 
+DB_HOST=postgres
+DB_PORT=5432
 DB_USER=airflow
 DB_PASSWORD=airflow
 DB_NAME=airflow
-DB_HOST=postgres
+
+LOG_LEVEL=INFO
 ```
 
-> ⚠️ **IMPORTANTE:** Nunca commite o arquivo `.env` com suas chaves reais no Git!
-
-### 4️⃣ Crie as Pastas e Ajuste Permissões
+### 3. Crie as pastas de runtime
 
 ```bash
-mkdir -p logs data
-sudo chmod -R 777 logs data
+# Windows
+mkdir data logs
+
+# Linux/Mac
+mkdir -p data logs
 ```
 
-### 5️⃣ Inicie os Containers
+### 4. Suba os containers
 
 ```bash
 docker compose up
 ```
 
-Aguarde todos os serviços subirem. Na primeira execução, o Airflow inicializa o banco e cria o usuário `admin` automaticamente.
-
-### 6️⃣ Recupere a Senha do Airflow
-
-```bash
-docker exec pipeline_weather-airflow-1 cat /opt/airflow/standalone_admin_password.txt
-```
+Na primeira execução o Airflow inicializa o banco automaticamente (~2 min).
 
 ---
 
-## 🎮 Como Executar
+## Como Executar
 
-### 1️⃣ Acesse a Interface do Airflow
+### Airflow — http://localhost:8080
 
-Abra: **http://localhost:8080**
-
-**Credenciais:**
-
-- Username: `admin`
-- Password: _(gerada automaticamente — veja passo 6 acima)_
-
-### 2️⃣ Ative e Dispare a DAG
-
-1. Localize a DAG **`clima_uirauna_etl`**
-2. Clique no botão ▶ **Trigger DAG** para executar manualmente
-3. A DAG está configurada para rodar **a cada 1 hora** automaticamente
-
-### 3️⃣ Verifique os Dados no Banco
+Recupere a senha gerada automaticamente:
 
 ```bash
-docker exec -it pipeline_weather-postgres-1 psql -U airflow -d airflow
+docker exec airflow-weather-pipeline-airflow-1 cat /opt/airflow/standalone_admin_password.txt
+```
+
+- **Usuário:** `admin`
+- **Senha:** _(valor retornado acima)_
+
+Na UI localize a DAG configurada em `pipeline_config.DAG_ID` e clique em **▶ Trigger DAG**.
+
+### Verificar dados no banco
+
+```bash
+docker exec -it airflow-weather-pipeline-postgres-1 psql -U airflow -d airflow
 ```
 
 ```sql
-SELECT COUNT(*) FROM uirauna_weather;
-SELECT * FROM uirauna_weather ORDER BY datetime DESC LIMIT 5;
+SELECT COUNT(*) FROM minha_tabela;
+SELECT * FROM minha_tabela ORDER BY 1 DESC LIMIT 5;
 ```
 
 ---
 
-## 🔍 Detalhamento das Etapas
+## Usando o dbt
 
-### 📥 ETAPA 1: EXTRACT
-
-**Arquivo:** `src/extract_data.py`
-
-- Faz requisição HTTP GET para a API OpenWeatherMap
-- Valida o status code da resposta
-- Salva os dados brutos em `data/weather_data.json`
-
-**Dados coletados:** temperatura, sensação térmica, umidade, pressão, vento, nebulosidade, coordenadas, horários de nascer e pôr do sol.
-
----
-
-### 🔄 ETAPA 2: TRANSFORM
-
-**Arquivo:** `src/transform_data.py`
-
-1. **Leitura do JSON** e criação do DataFrame com `pd.json_normalize()`
-2. **Normalização da coluna `weather`** — extrai `weather_id`, `weather_main`, `weather_description`
-3. **Remoção de colunas** desnecessárias
-4. **Renomeação de colunas** para nomes padronizados em inglês
-5. **Conversão de timestamps Unix** para datetime no fuso `America/Fortaleza`
-
-**Resultado:** DataFrame limpo salvo em formato Parquet.
-
----
-
-### 💾 ETAPA 3: LOAD
-
-**Arquivo:** `src/load_data.py`
-
-- Lê o arquivo Parquet intermediário
-- Conecta ao PostgreSQL via SQLAlchemy
-- Insere os dados na tabela `uirauna_weather` com `if_exists='append'`
-- Valida a inserção com `SELECT COUNT(*)`
-
-**Por que Parquet entre as etapas?**
-Formato binário eficiente que preserva tipos de dados (datetime, float), evitando problemas de serialização entre as tasks do Airflow.
-
----
-
-## 📊 Análise e Visualização de Dados
-
-**Arquivo:** `notebooks/analysis_data.ipynb`
-
-Com os dados acumulados no PostgreSQL, o notebook realiza análise exploratória e geração de visualizações sobre o clima de Uiraúna ao longo do tempo.
-
-### O que está sendo analisado:
-
-- 🌡️ **Temperatura** — variação ao longo do dia e tendências horárias
-- 💧 **Umidade** — correlação com temperatura e sensação térmica
-- 💨 **Vento** — velocidade, direção e rajadas
-- ☁️ **Nebulosidade** — frequência de céu aberto vs nublado
-- 🌅 **Padrões diários** — análise de médias por hora do dia
-- 📈 **Série temporal** — evolução das variáveis meteorológicas
-
-### Como rodar o notebook:
+O container dbt fica sempre ativo para execução sob demanda.
 
 ```bash
-# Instale as dependências localmente
-pip install pandas matplotlib seaborn psycopg2-binary sqlalchemy jupyter python-dotenv
+# Testar conexão com o banco
+docker exec airflow-weather-pipeline-dbt-1 dbt debug
 
-# Inicie o Jupyter
-jupyter notebook notebooks/analysis_data.ipynb
+# Rodar todos os models
+docker exec airflow-weather-pipeline-dbt-1 dbt run
+
+# Rodar apenas staging
+docker exec airflow-weather-pipeline-dbt-1 dbt run --select staging
+
+# Rodar testes de qualidade de dados
+docker exec airflow-weather-pipeline-dbt-1 dbt test
+
+# Entrar no container interativamente
+docker exec -it airflow-weather-pipeline-dbt-1 bash
 ```
 
-> O notebook se conecta diretamente ao PostgreSQL do container para buscar os dados acumulados.
+Os models ficam em `dbt/models/`:
+
+| Camada | Pasta | Materialização | Finalidade |
+|---|---|---|---|
+| Staging | `models/staging/` | view | Limpa e padroniza os dados raw |
+| Marts | `models/marts/` | table | Agrega e entrega métricas para análise |
 
 ---
 
-## 🐛 Troubleshooting
+## pgAdmin
 
-### DAG com erro de importação
+Acesse em **http://localhost:5050**
 
-```bash
-# Verifique se o .env está no lugar certo
-docker exec pipeline_weather-airflow-1 cat /opt/airflow/config/.env
+- **Email:** `admin@admin.com`
+- **Senha:** `admin`
+
+O servidor **ETL - PostgreSQL** já aparece pré-configurado na barra lateral. Ao conectar pela primeira vez, informe a senha `airflow`.
+
+---
+
+## Como Adaptar para seu Tema
+
+Toda a configuração do pipeline está centralizada em **`config/pipeline_config.py`**. Ao definir o tema, preencha:
+
+```python
+# 1. Identifique a DAG
+DAG_ID          = "nome_do_seu_pipeline"
+DAG_SCHEDULE    = "0 */1 * * *"          # frequência de execução
+
+# 2. Aponte para a API
+API_BASE_URL = "https://api.exemplo.com/dados?appid={api_key}"
+
+# 3. Nomeie a tabela de destino
+TABLE_NAME = "nome_da_tabela"
+
+# 4. Configure o mapeamento de colunas
+COLUMNS_TO_DROP   = ["coluna_desnecessaria"]
+COLUMNS_TO_RENAME = {"nome_api": "nome_padronizado"}
+DATETIME_COLUMNS  = ["datetime"]
 ```
 
-### Erro de permissão nas pastas
+Em seguida ajuste:
+
+- **`src/transform_data.py`** — funções marcadas com `# AJUSTE AQUI`
+- **`dbt/models/staging/stg_template.sql`** — renomeie e implemente a limpeza SQL
+- **`dbt/models/marts/mart_template.sql`** — implemente as agregações do domínio
+- **`dbt/models/staging/sources.yml`** — atualize o nome da tabela raw
+
+---
+
+## Testes
 
 ```bash
-sudo chmod -R 777 logs data
+# Instale dependências de dev
+pip install -e ".[dev]"
+
+# Rode todos os testes
+pytest
+
+# Com cobertura
+pytest --cov=src --cov-report=term-missing
 ```
 
-### Banco de dados com schema desatualizado
+Testes disponíveis em `tests/unit/`:
+
+- `test_extract.py` — testa HTTP 200, erros e resposta vazia
+- `test_transform.py` — testa criação de DataFrame, drop, rename e conversão de datetime
+
+---
+
+## Troubleshooting
+
+### Verificar .env dentro do Airflow
 
 ```bash
-docker exec -it pipeline_weather-postgres-1 psql -U airflow -d airflow -c "DROP TABLE IF EXISTS uirauna_weather;"
+docker exec airflow-weather-pipeline-airflow-1 cat /opt/airflow/config/.env
 ```
 
-Re-execute a DAG para recriar a tabela com o schema correto.
+### dbt não encontra o banco
 
-### Erro `execution_date` ao subir o Airflow
+```bash
+docker exec airflow-weather-pipeline-dbt-1 dbt debug
+```
 
-Volume do PostgreSQL com dados de versão antiga. Solução:
+Verifique se `DB_PASSWORD` está definido no `config/.env`.
+
+### Resetar volumes e reiniciar do zero
 
 ```bash
 docker compose down -v
 docker compose up
 ```
 
-### Resetar tudo do zero
+### Ver logs de um container específico
 
 ```bash
-docker compose down -v
-sudo rm -rf logs/*
-docker compose up
+docker logs airflow-weather-pipeline-airflow-1 --tail 50
+docker logs airflow-weather-pipeline-dbt-1 --tail 50
+```
+
+### Airflow não carrega a DAG
+
+```bash
+docker exec airflow-weather-pipeline-airflow-1 airflow dags list
+docker exec airflow-weather-pipeline-airflow-1 airflow dags test meu_pipeline_etl
 ```
 
 ---
 
-## 📧 Contato
+## Contato
 
-**Luis Fernando**
+**Lucas Soares**
 
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-luisfernando--eng-0077B5?style=flat&logo=linkedin)](https://www.linkedin.com/in/luisfernando-eng/)
-[![Instagram](https://img.shields.io/badge/Instagram-@luis__fernando__jv__eng-E4405F?style=flat&logo=instagram)](https://www.instagram.com/luis_fernando_jv_eng)
-[![Gmail](https://img.shields.io/badge/Gmail-luizfer.12321@gmail.com-D14836?style=flat&logo=gmail)](mailto:luizfer.12321@gmail.com)
-[![GitHub](https://img.shields.io/badge/GitHub-seu--usuario-181717?style=flat&logo=github)](https://github.com/seu-usuario)
+[![GitHub](https://img.shields.io/badge/GitHub-Lucaslssoares-181717?style=flat&logo=github)](https://github.com/Lucaslssoares)
+[![Gmail](https://img.shields.io/badge/Gmail-solareslucas@gmail.com-D14836?style=flat&logo=gmail)](mailto:solareslucas@gmail.com)
