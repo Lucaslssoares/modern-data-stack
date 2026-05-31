@@ -1,0 +1,18 @@
+version: 2
+
+sources:
+  - name: raw                          # nome lógico da fonte
+    schema: public                     # schema onde o Airflow carrega os dados
+    description: "Dados brutos carregados pelo pipeline ETL (Airflow + Python)"
+
+    tables:
+      - name: minha_tabela             # igual a pipeline_config.TABLE_NAME
+        description: "Tabela raw — preencher quando o tema for definido"
+        columns: []
+        # Quando definir o tema, adicione colunas aqui para documentação e testes:
+        # columns:
+        #   - name: id
+        #     description: "Identificador único do registro"
+        #     tests:
+        #       - unique
+        #       - not_null

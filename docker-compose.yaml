@@ -1,0 +1,74 @@
+services:
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"    # exposto para Airbyte Cloud conectar
+    networks:
+      - etl_network
+
+  airflow:
+    image: apache/airflow:2.9.2
+    depends_on:
+      - postgres
+    user: "50000:0"
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__WEBSERVER__SECRET_KEY: "supersecretkey123"
+      DB_HOST: postgres
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./config:/opt/airflow/config
+      - ./src:/opt/airflow/src
+      - ./data:/opt/airflow/data
+    ports:
+      - "8080:8080"
+    command: standalone
+    networks:
+      - etl_network
+
+  pgadmin:
+    image: dpage/pgadmin4
+    depends_on:
+      - postgres
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_SERVER_JSON_FILE: /pgadmin4/servers.json
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin-volume:/var/lib/pgadmin
+      - ./config/pgadmin/servers.json:/pgadmin4/servers.json:ro
+      - ./config/pgadmin/pgpass:/pgpass:ro
+    networks:
+      - etl_network
+
+  dbt:
+    image: ghcr.io/dbt-labs/dbt-postgres:1.9.0
+    depends_on:
+      - postgres
+    volumes:
+      - ./dbt:/usr/app
+      - ./config/dbt/profiles.yml:/root/.dbt/profiles.yml:ro
+    working_dir: /usr/app
+    entrypoint: ["tail", "-f", "/dev/null"]   # mantém container vivo para docker exec
+    networks:
+      - etl_network
+
+networks:
+  etl_network:
+    driver: bridge
+
+volumes:
+  postgres-db-volume:
+  pgadmin-volume:

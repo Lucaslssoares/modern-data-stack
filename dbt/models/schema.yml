@@ -1,0 +1,16 @@
+version: 2
+
+models:
+  - name: stg_template
+    description: "Staging — limpeza e padronização dos dados brutos"
+    columns: []
+    # Adicione colunas e testes quando o tema for definido:
+    # columns:
+    #   - name: registro_id
+    #     tests:
+    #       - unique
+    #       - not_null
+
+  - name: mart_template
+    description: "Mart — agregações e métricas para análise"
+    columns: []

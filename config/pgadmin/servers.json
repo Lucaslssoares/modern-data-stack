@@ -1,0 +1,14 @@
+{
+    "Servers": {
+        "1": {
+            "Name": "ETL - PostgreSQL",
+            "Group": "Servers",
+            "Host": "postgres",
+            "Port": 5432,
+            "MaintenanceDB": "airflow",
+            "Username": "airflow",
+            "PassFile": "/pgpass",
+            "SSLMode": "prefer"
+        }
+    }
+}
