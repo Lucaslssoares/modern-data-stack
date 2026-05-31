@@ -1,0 +1,27 @@
+version: 2
+
+# =============================================================================
+# CAMADA BRONZE — dados brutos carregados pelo Airflow
+# Não há modelos SQL aqui: o Airflow carrega diretamente via Python (to_sql).
+# Esta declaração torna o bronze visível para as camadas Silver do dbt.
+# =============================================================================
+
+sources:
+  - name: bronze
+    schema: bronze
+    description: "Dados brutos vindos diretamente da API, sem transformação."
+
+    tables:
+      - name: raw_source
+        description: >
+          Tabela raw principal. Renomear para raw_<tema> ao definir o domínio.
+          Contém todos os campos retornados pela API + metadados de carga.
+        columns:
+          - name: _loaded_at
+            description: "Timestamp UTC de quando o registro foi carregado."
+          - name: _source
+            description: "Identificador da fonte (ex: openweather, erp, sensor)."
+        # Adicione testes e mais colunas ao definir o tema:
+        # tests:
+        #   - not_null:
+        #       column_name: _loaded_at

@@ -4,18 +4,22 @@ config-version: 2
 
 profile: etl
 
-model-paths: ["models"]
-seed-paths:  ["seeds"]
-test-paths:  ["tests"]
+model-paths:  ["models"]
+macro-paths:  ["macros"]
+seed-paths:   ["seeds"]
+test-paths:   ["tests"]
 
-target-path: "target"
-clean-targets: ["target", "dbt_packages"]
+target-path:    "target"
+clean-targets:  ["target", "dbt_packages"]
 
 models:
   etl:
-    staging:
-      +materialized: view
-      +schema: staging
-    marts:
-      +materialized: table
-      +schema: marts
+    # Bronze: sem modelos SQL — apenas sources.yml (dados carregados pelo Airflow)
+
+    silver:
+      +materialized: view      # leve, recalculado a cada run
+      +schema: silver
+
+    gold:
+      +materialized: table     # persistido, otimizado para leitura
+      +schema: gold

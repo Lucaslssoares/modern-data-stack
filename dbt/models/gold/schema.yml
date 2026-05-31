@@ -1,0 +1,9 @@
+version: 2
+
+models:
+  - name: fct_template
+    description: >
+      Camada Gold — agregações e métricas do domínio prontas para consumo.
+      Renomear para fct_<tema> ou dim_<tema> ao definir o domínio.
+    columns: []
+    # Adicionar colunas e testes ao implementar o modelo.

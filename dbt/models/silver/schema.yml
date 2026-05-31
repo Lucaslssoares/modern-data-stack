@@ -1,0 +1,18 @@
+version: 2
+
+models:
+  - name: stg_template
+    description: >
+      Camada Silver — dados do Bronze limpos, tipados e padronizados.
+      Renomear para stg_<tema> ao definir o domínio.
+    columns:
+      - name: _loaded_at
+        description: "Timestamp de carga herdado do Bronze."
+      - name: _source
+        description: "Identificador da fonte herdado do Bronze."
+    # Adicionar testes ao definir colunas do tema:
+    # tests:
+    #   - unique:
+    #       column_name: registro_id
+    #   - not_null:
+    #       column_name: registro_id

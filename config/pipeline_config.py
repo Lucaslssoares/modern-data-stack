@@ -1,51 +1,34 @@
 import os
 from pathlib import Path
 
-# Resolve raiz do projeto:
-#   - Em Docker/Airflow: AIRFLOW_HOME=/opt/airflow
-#   - Localmente: pasta pai deste arquivo (project root)
+# Raiz do projeto — funciona em Docker (/opt/airflow) e localmente
 BASE_DIR = Path(os.getenv("AIRFLOW_HOME", Path(__file__).resolve().parent.parent))
 
 # =============================================================================
 # DAG
 # =============================================================================
-DAG_ID          = "meu_pipeline_etl"
-DAG_DESCRIPTION = "Pipeline ETL - <tema>"
-DAG_SCHEDULE    = "0 */1 * * *"     # a cada 1h | "@daily" | "@hourly"
+DAG_ID          = "meu_pipeline_elt"
+DAG_DESCRIPTION = "Pipeline ELT Medallion — <tema>"
+DAG_SCHEDULE    = "0 */1 * * *"
 DAG_OWNER       = "admin"
-DAG_TAGS        = ["etl"]
+DAG_TAGS        = ["elt", "medallion"]
 
 # =============================================================================
-# API
+# API — fonte de dados
 # =============================================================================
-# URL da fonte de dados. {api_key} é substituído em runtime com o valor do .env
-API_BASE_URL = "https://api.exemplo.com/endpoint?param=valor&appid={api_key}"
+API_BASE_URL = "https://api.exemplo.com/endpoint?appid={api_key}"
 
 # =============================================================================
-# Banco de dados — destino final dos dados carregados
+# Camadas Medallion
 # =============================================================================
-TABLE_NAME = "minha_tabela"
+BRONZE_SCHEMA = "bronze"   # raw — carregado pelo Airflow (Python)
+SILVER_SCHEMA = "silver"   # clean — transformado pelo dbt
+GOLD_SCHEMA   = "gold"     # business — agregado pelo dbt
+
+BRONZE_TABLE  = "raw_source"   # renomear para raw_<tema> ao definir o tema
 
 # =============================================================================
-# Caminhos de dados intermediários
+# Caminhos
 # =============================================================================
-DATA_DIR       = BASE_DIR / "data"
-RAW_DATA_PATH  = str(DATA_DIR / "raw_data.json")
-TEMP_DATA_PATH = str(DATA_DIR / "temp_data.parquet")
-
-# =============================================================================
-# Transform — mapeamento de colunas
-# =============================================================================
-COLUMNS_TO_DROP: list[str] = [
-    # "coluna_a",
-]
-
-COLUMNS_TO_RENAME: dict[str, str] = {
-    # "nome_api": "nome_padronizado",
-}
-
-DATETIME_COLUMNS: list[str] = [
-    # "datetime",
-]
-
-TIMEZONE = "America/Sao_Paulo"
+DATA_DIR      = BASE_DIR / "data"
+RAW_DATA_PATH = str(DATA_DIR / "raw_data.json")
