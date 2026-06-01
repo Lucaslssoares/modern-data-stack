@@ -1,166 +1,130 @@
-# Modern Data Stack — Pipeline ETL Template
+# Modern Data Stack — Pipeline ELT
 
 [![GitHub](https://img.shields.io/badge/GitHub-Lucaslssoares-181717?style=flat&logo=github)](https://github.com/Lucaslssoares)
 [![Gmail](https://img.shields.io/badge/Gmail-solareslucas@gmail.com-D14836?style=flat&logo=gmail)](mailto:solareslucas@gmail.com)
 
-> Template de pipeline ETL modular e reutilizável construído sobre Apache Airflow, dbt, PostgreSQL e Docker. Projetado para ser adaptado a qualquer fonte de dados ou domínio de negócio.
+Projeto de orquestração e transformação de dados com Airflow e dbt, integrado ao Airbyte Cloud e ao PostgreSQL.
 
 ---
 
-## Índice
+## Visão Geral
 
-- [Sobre o Projeto](#sobre-o-projeto)
-- [Arquitetura](#arquitetura)
-- [Stack Tecnológica](#stack-tecnológica)
-- [Estrutura do Projeto](#estrutura-do-projeto)
-- [Pré-requisitos](#pré-requisitos)
-- [Instalação e Configuração](#instalação-e-configuração)
-- [Como Executar](#como-executar)
-- [Usando o dbt](#usando-o-dbt)
-- [pgAdmin](#pgadmin)
-- [Como Adaptar para seu Tema](#como-adaptar-para-seu-tema)
-- [Testes](#testes)
-- [Troubleshooting](#troubleshooting)
+O repositório concentra a camada de orquestração e transformação da pilha:
+
+- **Airflow** para orquestrar os pipelines ELT
+- **Airbyte Cloud** para sincronizar dados de origem via API externa
+- **dbt** para modelagem, testes e publicação das camadas analíticas (Bronze → Silver → Gold)
+- **PostgreSQL** como destino das cargas brutas e das tabelas transformadas
+- **pgAdmin** como interface visual para consulta e auditoria do banco
+
+> **Importante:** segredos e credenciais devem ficar apenas em arquivos locais (ex.: `config/.env`), nunca versionados no GitHub.
 
 ---
 
-## Sobre o Projeto
+## Domínios Atuais
 
-Este repositório implementa um **Modern Data Stack** completo e containerizado, servindo como base para pipelines ETL de qualquer domínio.
+O projeto está estruturado como template e pronto para receber domínios. Ao definir o tema, cadastre aqui:
 
-O template já entrega pronto:
+```
+# Domínios ativos (com DAG dedicada):
+# <dominio>_pipeline
 
-- Orquestração com **Apache Airflow** (DAG genérica configurável)
-- Camada de transformação SQL com **dbt** (staging + marts)
-- Armazenamento em **PostgreSQL 16**
-- Interface visual com **pgAdmin 4**
-- Conexão com **Airbyte Cloud** via porta 5432 exposta
-- Testes unitários com **pytest**
-- Logging centralizado e configuração via variáveis de ambiente
+# Domínios em preparação (sem DAG dedicada):
+# <dominio>/
+```
+
+Consulte `config/pipeline_config.py` para configurar cada domínio.
 
 ---
 
 ## Arquitetura
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                     ORQUESTRAÇÃO                        │
-│                  Apache Airflow :8080                   │
-└──────────────────────┬──────────────────────────────────┘
-                       │
-          ┌────────────┼────────────┐
-          ▼            ▼            ▼
-    ┌──────────┐ ┌──────────┐ ┌──────────┐
-    │ EXTRACT  │ │TRANSFORM │ │   LOAD   │
-    │ API REST │ │  Pandas  │ │ SQLAlch. │
-    │  → JSON  │ │ → Parquet│ │→Postgres │
-    └──────────┘ └──────────┘ └──────────┘
-                                    │
-                       ┌────────────┴────────────┐
-                       ▼                         ▼
-              ┌──────────────┐         ┌──────────────────┐
-              │   dbt :exec  │         │  pgAdmin  :5050  │
-              │  staging SQL │         │  Interface visual │
-              │  marts  SQL  │         └──────────────────┘
-              └──────────────┘
-                       │
-                       ▼
-              ┌──────────────────┐
-              │  PostgreSQL :5432│ ← Airbyte Cloud
-              └──────────────────┘
+Sistemas de Origem (API REST)
+          |
+          v
+   Python Extract (src/)
+          |
+          v
+ PostgreSQL schema: bronze      ← carga bruta via Airflow (flatten + metadata)
+          |
+          v
+ dbt Silver (schema: silver)    ← limpeza, tipagem, padronização (views)
+          |
+          v
+ dbt Gold (schema: gold)        ← agregações e métricas de negócio (tables)
+          |
+          v
+    Consumo Analítico
+  (pgAdmin / Airbyte Cloud / notebooks)
 ```
 
-**Fluxo de dados:**
-1. **Extract** — requisição HTTP GET para API configurada, salva `raw_data.json`
-2. **Transform** — normalização, renomeação e tipagem via Pandas, salva `temp_data.parquet`
-3. **Load** — inserção no PostgreSQL (modo append, acumula histórico)
-4. **dbt** — transforma os dados raw em camadas staging (views) e marts (tables)
+**Fluxo dentro de cada DAG:**
+
+```
+extract → load_bronze → dbt_silver → dbt_test_silver → dbt_gold → dbt_test_gold
+```
 
 ---
 
-## Stack Tecnológica
-
-| Camada | Tecnologia | Versão |
-|---|---|---|
-| Orquestração | Apache Airflow | 2.9.2 |
-| Transformação Python | Pandas + PyArrow | 3.x |
-| Transformação SQL | dbt-postgres | 1.9.0 |
-| Banco de dados | PostgreSQL | 16 |
-| Interface DB | pgAdmin 4 | latest |
-| Containerização | Docker + Compose | v2 |
-| Linguagem | Python | 3.12+ |
-| Testes | pytest | 8.x |
-
----
-
-## Estrutura do Projeto
+## Estrutura do Repositório
 
 ```
-modern-data-stack/
-│
-├── config/                          # Configurações centralizadas
-│   ├── pipeline_config.py           # ← PREENCHA AQUI ao definir o tema
-│   ├── .env                         # Credenciais (não versionado)
+.
+├── config/
+│   ├── pipeline_config.py       # Configuração central: DAG, API, schemas, tabelas
+│   ├── .env                     # Segredos locais (não versionado)
 │   ├── dbt/
-│   │   └── profiles.yml             # Conexão dbt → PostgreSQL (via env vars)
+│   │   └── profiles.yml         # Perfil dbt → PostgreSQL (lê variáveis de ambiente)
 │   └── pgadmin/
-│       └── servers.json             # Conexão pgAdmin (automática)
-│
+│       └── servers.json         # Conexão automática do pgAdmin
 ├── dags/
-│   └── etl_dag.py                   # DAG Airflow genérica
-│
+│   └── etl_dag.py               # DAG genérica: extract → bronze → silver → gold
 ├── src/
 │   ├── common/
-│   │   ├── logger.py                # get_logger() centralizado
-│   │   └── database.py              # get_engine() SQLAlchemy
-│   ├── extract_data.py              # Etapa Extract
-│   ├── transform_data.py            # Etapa Transform
-│   └── load_data.py                 # Etapa Load
-│
+│   │   ├── logger.py            # get_logger() centralizado
+│   │   └── database.py          # get_engine() SQLAlchemy
+│   ├── extract_data.py          # Requisição HTTP → raw_data.json
+│   ├── flatten_data.py          # JSON → DataFrame Bronze (+ _loaded_at, _source)
+│   └── load_data.py             # DataFrame → PostgreSQL (schema-aware)
 ├── dbt/
 │   ├── dbt_project.yml
+│   ├── macros/
+│   │   └── generate_schema_name.sql   # Schema exato sem prefixo
 │   └── models/
-│       ├── schema.yml
-│       ├── staging/
-│       │   ├── sources.yml          # Declara tabela raw como fonte
-│       │   └── stg_template.sql     # Template de staging layer
-│       └── marts/
-│           └── mart_template.sql    # Template de mart layer
-│
+│       ├── bronze/
+│       │   └── sources.yml            # Declara tabelas raw como fontes dbt
+│       ├── silver/
+│       │   ├── stg_template.sql       # Limpeza e tipagem (view)
+│       │   └── schema.yml
+│       └── gold/
+│           ├── fct_template.sql       # Métricas e agregações (table)
+│           └── schema.yml
 ├── tests/
 │   └── unit/
-│       ├── test_extract.py          # Testes da etapa Extract
-│       └── test_transform.py        # Testes da etapa Transform
-│
+│       ├── test_extract.py
+│       └── test_flatten.py
 ├── notebooks/
-│   └── analysis_data.ipynb          # Análise exploratória
-│
-├── docker-compose.yaml              # Todos os serviços
-├── main.py                          # Execução local (sem Docker)
-├── pyproject.toml                   # Dependências e configuração pytest
-└── .env.example                     # Template de variáveis de ambiente
+│   └── analysis_data.ipynb      # Análise exploratória
+├── Dockerfile.airflow            # Airflow + dbt-postgres instalado
+├── docker-compose.yaml
+├── main.py                       # Execução local sem Docker
+├── pyproject.toml
+├── .env.example
+└── README.md
 ```
 
 ---
 
-## Pré-requisitos
+## Configuração Local Segura
 
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) instalado e em execução
-- Conta na API que será consumida (definida ao escolher o tema)
-- Git
+### 1. Pré-requisitos
 
----
+- Docker Desktop instalado e em execução
+- Acesso à API que será consumida (definida em `config/pipeline_config.py`)
+- Credenciais e variáveis definidas apenas localmente
 
-## Instalação e Configuração
-
-### 1. Clone o repositório
-
-```bash
-git clone https://github.com/Lucaslssoares/modern-data-stack.git
-cd modern-data-stack
-```
-
-### 2. Crie o arquivo de credenciais
+### 2. Crie o arquivo local de ambiente
 
 ```bash
 # Windows
@@ -170,10 +134,10 @@ copy .env.example config\.env
 cp .env.example config/.env
 ```
 
-Edite `config/.env`:
+### 3. Preencha os segredos no `.env`
 
 ```env
-API_KEY=sua_chave_api_aqui
+API_KEY=sua_chave_aqui
 
 DB_HOST=postgres
 DB_PORT=5432
@@ -184,187 +148,206 @@ DB_NAME=airflow
 LOG_LEVEL=INFO
 ```
 
-### 3. Crie as pastas de runtime
-
-```bash
-# Windows
-mkdir data logs
-
-# Linux/Mac
-mkdir -p data logs
-```
+Use valores reais do seu ambiente. **Não publique esse arquivo.**
 
 ### 4. Suba os containers
 
 ```bash
-docker compose up
+docker compose up --build
 ```
 
-Na primeira execução o Airflow inicializa o banco automaticamente (~2 min).
+O `--build` é necessário apenas na primeira execução para instalar o dbt na imagem do Airflow.
 
----
-
-## Como Executar
-
-### Airflow — http://localhost:8080
-
-Recupere a senha gerada automaticamente:
+### 5. Recupere a senha do Airflow
 
 ```bash
 docker exec airflow-weather-pipeline-airflow-1 cat /opt/airflow/standalone_admin_password.txt
 ```
 
-- **Usuário:** `admin`
-- **Senha:** _(valor retornado acima)_
-
-Na UI localize a DAG configurada em `pipeline_config.DAG_ID` e clique em **▶ Trigger DAG**.
-
-### Verificar dados no banco
-
-```bash
-docker exec -it airflow-weather-pipeline-postgres-1 psql -U airflow -d airflow
-```
-
-```sql
-SELECT COUNT(*) FROM minha_tabela;
-SELECT * FROM minha_tabela ORDER BY 1 DESC LIMIT 5;
-```
+Acesse em **http://localhost:8080** com usuário `admin`.
 
 ---
 
-## Usando o dbt
+## Camada Analítica
 
-O container dbt fica sempre ativo para execução sob demanda.
+O diretório `notebooks/` é usado para consultas exploratórias, validação e auditoria dos dados.
+
+- **Não** substitui os modelos de produção (`models/silver`, `models/gold`)
+- **Não** entra no fluxo padrão das DAGs de produção
+- Serve como base para validações manuais e análises pontuais
+
+---
+
+## Executar dbt Local (via Docker)
+
+Para execução manual use o container dbt, que compartilha o mesmo diretório `dbt/`:
 
 ```bash
-# Testar conexão com o banco
+# Testar conexão
 docker exec airflow-weather-pipeline-dbt-1 dbt debug
 
-# Rodar todos os models
-docker exec airflow-weather-pipeline-dbt-1 dbt run
+# Instalar pacotes
+docker exec airflow-weather-pipeline-dbt-1 dbt deps
 
-# Rodar apenas staging
-docker exec airflow-weather-pipeline-dbt-1 dbt run --select staging
+# Run/test por camada
+docker exec airflow-weather-pipeline-dbt-1 dbt run  --select silver
+docker exec airflow-weather-pipeline-dbt-1 dbt test --select silver
 
-# Rodar testes de qualidade de dados
-docker exec airflow-weather-pipeline-dbt-1 dbt test
+docker exec airflow-weather-pipeline-dbt-1 dbt run  --select gold
+docker exec airflow-weather-pipeline-dbt-1 dbt test --select gold
 
-# Entrar no container interativamente
-docker exec -it airflow-weather-pipeline-dbt-1 bash
+# Build completo (run + test)
+docker exec airflow-weather-pipeline-dbt-1 dbt build --select silver+
 ```
 
-Os models ficam em `dbt/models/`:
+Exemplo para um domínio específico (após definir o tema):
 
-| Camada | Pasta | Materialização | Finalidade |
-|---|---|---|---|
-| Staging | `models/staging/` | view | Limpa e padroniza os dados raw |
-| Marts | `models/marts/` | table | Agrega e entrega métricas para análise |
-
----
-
-## pgAdmin
-
-Acesse em **http://localhost:5050**
-
-- **Email:** `admin@admin.com`
-- **Senha:** `admin`
-
-O servidor **ETL - PostgreSQL** já aparece pré-configurado na barra lateral. Ao conectar pela primeira vez, informe a senha `airflow`.
+```bash
+docker exec airflow-weather-pipeline-dbt-1 dbt build \
+  --select "silver.<dominio>+ gold.<dominio>+"
+```
 
 ---
 
-## Como Adaptar para seu Tema
+## Variáveis Importantes do Airflow
 
-Toda a configuração do pipeline está centralizada em **`config/pipeline_config.py`**. Ao definir o tema, preencha:
+Configure em **Admin → Variables** na UI do Airflow.
+
+**Configuração da DAG:**
+
+| Variável | Descrição |
+|---|---|
+| `api_key` | Chave de autenticação da API de origem |
+| `db_host` | Host do PostgreSQL (`postgres` dentro do Docker) |
+| `log_level` | Nível de log (`INFO`, `DEBUG`) |
+
+**Configuração Airbyte Cloud** (quando integrado):
+
+| Variável | Descrição |
+|---|---|
+| `airbyte_base_url` | URL base da API do Airbyte Cloud |
+| `airbyte_api_token` | Token de autenticação |
+| `airbyte_connection_ids_<dominio>` | IDs de conexão por domínio |
+
+> As DAGs leem as variáveis de `config/pipeline_config.py`. Variáveis sensíveis devem ficar em `config/.env`, nunca no código.
+
+---
+
+## Alertas por E-mail
+
+Para habilitar notificações de falha nas DAGs, configure em `dags/etl_dag.py`:
 
 ```python
-# 1. Identifique a DAG
-DAG_ID          = "nome_do_seu_pipeline"
-DAG_SCHEDULE    = "0 */1 * * *"          # frequência de execução
-
-# 2. Aponte para a API
-API_BASE_URL = "https://api.exemplo.com/dados?appid={api_key}"
-
-# 3. Nomeie a tabela de destino
-TABLE_NAME = "nome_da_tabela"
-
-# 4. Configure o mapeamento de colunas
-COLUMNS_TO_DROP   = ["coluna_desnecessaria"]
-COLUMNS_TO_RENAME = {"nome_api": "nome_padronizado"}
-DATETIME_COLUMNS  = ["datetime"]
+default_args={
+    "email": ["seu@email.com"],
+    "email_on_failure": True,
+    "email_on_retry": False,
+}
 ```
 
-Em seguida ajuste:
+E defina as variáveis SMTP no Airflow (**Admin → Connections** → `smtp_default`).
 
-- **`src/transform_data.py`** — funções marcadas com `# AJUSTE AQUI`
-- **`dbt/models/staging/stg_template.sql`** — renomeie e implemente a limpeza SQL
-- **`dbt/models/marts/mart_template.sql`** — implemente as agregações do domínio
-- **`dbt/models/staging/sources.yml`** — atualize o nome da tabela raw
+Regras padrão adotadas:
+
+- Envia apenas em `failure`
+- Não envia em `retry`
+- Não envia em sucesso
 
 ---
 
-## Testes
+## Como os Pipelines Funcionam
 
-```bash
-# Instale dependências de dev
-pip install -e ".[dev]"
+1. A DAG lê a configuração de `config/pipeline_config.py` (URL da API, schemas, tabela de destino)
+2. A task `extract` faz GET na API e salva `data/raw_data.json`
+3. A task `load_bronze` achata o JSON com `json_normalize`, adiciona `_loaded_at` e `_source`, e carrega no schema `bronze`
+4. O Airflow aciona `dbt run --select silver` — o dbt lê o bronze como source e gera views limpas no schema `silver`
+5. O Airflow aciona `dbt test --select silver` — valida qualidade dos dados
+6. O Airflow aciona `dbt run --select gold` — agrega e publica tabelas no schema `gold`
+7. O Airflow aciona `dbt test --select gold` — valida as métricas finais
+8. Os modelos ficam disponíveis nos schemas `bronze`, `silver` e `gold` do PostgreSQL
 
-# Rode todos os testes
-pytest
+**Padrão de modelagem adotado:**
 
-# Com cobertura
-pytest --cov=src --cov-report=term-missing
-```
+- `silver`: pode manter metadados técnicos de carga (`_loaded_at`, `_source`)
+- `gold`: deve ficar sem colunas de metadados técnicos — apenas colunas de negócio
 
-Testes disponíveis em `tests/unit/`:
-
-- `test_extract.py` — testa HTTP 200, erros e resposta vazia
-- `test_transform.py` — testa criação de DataFrame, drop, rename e conversão de datetime
+O comportamento compartilhado (logger, database engine) fica centralizado em `src/common/`, simplificando a duplicação entre DAGs.
 
 ---
 
-## Troubleshooting
+## Documentação Complementar
 
-### Verificar .env dentro do Airflow
+O guia operacional detalhado do dbt está em `dbt/dbt_project.yml` e nos arquivos `schema.yml` de cada camada, incluindo:
+
+- Configuração de schemas por camada (silver = view, gold = table)
+- Declaração de fontes Bronze
+- Exemplos de testes de qualidade de dados
+- Macro `generate_schema_name` para naming exato sem prefixo
+
+---
+
+## Observações
+
+- O arquivo `config/.env` é local e **não deve ser versionado**
+- Arquivos de infraestrutura devem ler credenciais por variável de ambiente — sem hardcode no repositório
+- O perfil usado pelas tasks dbt do Airflow é `config/dbt/profiles.yml` (lê do `.env` via `env_var()`)
+- O arquivo `config/dbt/profiles.yml` serve tanto para o container dbt (desenvolvimento) quanto para o Airflow (produção automatizada)
+- Para execução local fora do Docker, use `main.py` — ele resolve os paths automaticamente
+- O schema `bronze` é criado pelo Python (`load_data.py`); os schemas `silver` e `gold` são criados automaticamente pelo dbt
+
+---
+
+## Checklist Antes de Fazer Push
 
 ```bash
-docker exec airflow-weather-pipeline-airflow-1 cat /opt/airflow/config/.env
+# 1) garantir que não existe segredo real pronto para commit
+git status --short
+
+# 2) validar que o arquivo local de segredos não será enviado
+git check-ignore -v config/.env
+
+# 3) varredura simples de termos sensíveis em arquivos versionados
+git diff --cached | grep -i -E "(password|secret|token|api_key\s*=\s*['\"][^'\"]{8,})"
 ```
 
-### dbt não encontra o banco
+---
 
-```bash
-docker exec airflow-weather-pipeline-dbt-1 dbt debug
-```
+## Solução de Problemas Rápida
 
-Verifique se `DB_PASSWORD` está definido no `config/.env`.
-
-### Resetar volumes e reiniciar do zero
-
-```bash
-docker compose down -v
-docker compose up
-```
-
-### Ver logs de um container específico
-
-```bash
-docker logs airflow-weather-pipeline-airflow-1 --tail 50
-docker logs airflow-weather-pipeline-dbt-1 --tail 50
-```
-
-### Airflow não carrega a DAG
+**DAG não carrega no Airflow**
 
 ```bash
 docker exec airflow-weather-pipeline-airflow-1 airflow dags list
-docker exec airflow-weather-pipeline-airflow-1 airflow dags test meu_pipeline_etl
+docker exec airflow-weather-pipeline-airflow-1 airflow dags report
 ```
 
----
+**dbt não conecta ao banco**
 
-## Contato
+```bash
+docker exec airflow-weather-pipeline-dbt-1 dbt debug
+# Verifique se DB_PASSWORD está definido em config/.env
+```
 
-**Lucas Soares**
+**Erro de permissão nos diretórios do dbt**
 
-[![GitHub](https://img.shields.io/badge/GitHub-Lucaslssoares-181717?style=flat&logo=github)](https://github.com/Lucaslssoares)
-[![Gmail](https://img.shields.io/badge/Gmail-solareslucas@gmail.com-D14836?style=flat&logo=gmail)](mailto:solareslucas@gmail.com)
+```bash
+# Linux/Mac
+chmod -R u+rwX dbt/target dbt/dbt_packages
+
+# Windows — recriar os diretórios
+docker exec airflow-weather-pipeline-dbt-1 rm -rf /usr/app/target /usr/app/dbt_packages
+```
+
+**Resetar tudo do zero**
+
+```bash
+docker compose down -v
+docker compose up --build
+```
+
+**Ver logs de um container**
+
+```bash
+docker logs airflow-weather-pipeline-airflow-1 --tail 50 -f
+docker logs airflow-weather-pipeline-dbt-1     --tail 50 -f
+```
