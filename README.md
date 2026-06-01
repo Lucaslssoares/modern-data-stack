@@ -180,31 +180,35 @@ O diretório `notebooks/` é usado para consultas exploratórias, validação e 
 
 ## Executar dbt Local (via Docker)
 
-Para execução manual use o container dbt, que compartilha o mesmo diretório `dbt/`:
+O dbt está instalado dentro do container do Airflow — use-o para execução manual:
 
 ```bash
+# Atalho: define a variável para não repetir flags em todo comando
+DBT="docker exec airflow-weather-pipeline-airflow-1 dbt \
+  --project-dir /opt/airflow/dbt \
+  --profiles-dir /opt/airflow/config/dbt"
+
 # Testar conexão
-docker exec airflow-weather-pipeline-dbt-1 dbt debug
+$DBT debug
 
 # Instalar pacotes
-docker exec airflow-weather-pipeline-dbt-1 dbt deps
+$DBT deps
 
 # Run/test por camada
-docker exec airflow-weather-pipeline-dbt-1 dbt run  --select silver
-docker exec airflow-weather-pipeline-dbt-1 dbt test --select silver
+$DBT run  --select silver
+$DBT test --select silver
 
-docker exec airflow-weather-pipeline-dbt-1 dbt run  --select gold
-docker exec airflow-weather-pipeline-dbt-1 dbt test --select gold
+$DBT run  --select gold
+$DBT test --select gold
 
 # Build completo (run + test)
-docker exec airflow-weather-pipeline-dbt-1 dbt build --select silver+
+$DBT build --select silver+
 ```
 
 Exemplo para um domínio específico (após definir o tema):
 
 ```bash
-docker exec airflow-weather-pipeline-dbt-1 dbt build \
-  --select "silver.<dominio>+ gold.<dominio>+"
+$DBT build --select "silver.<dominio>+ gold.<dominio>+"
 ```
 
 ---

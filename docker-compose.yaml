@@ -57,19 +57,6 @@ services:
     networks:
       - etl_network
 
-  # Container dbt para uso interativo durante desenvolvimento
-  # Automatização via Airflow (dbt instalado na imagem do Airflow)
-  dbt:
-    image: ghcr.io/dbt-labs/dbt-postgres:1.9.0
-    depends_on:
-      - postgres
-    volumes:
-      - ./dbt:/usr/app
-      - ./config/dbt/profiles.yml:/root/.dbt/profiles.yml:ro
-    working_dir: /usr/app
-    entrypoint: ["tail", "-f", "/dev/null"]
-    networks:
-      - etl_network
 
 networks:
   etl_network:
