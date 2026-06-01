@@ -20,6 +20,8 @@ services:
     depends_on:
       - postgres
     user: "50000:0"
+    env_file:
+      - config/.env          # expõe DB_PASSWORD e API_KEY como variáveis de ambiente reais (necessário para o dbt)
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
@@ -27,6 +29,7 @@ services:
       AIRFLOW__WEBSERVER__SECRET_KEY: "supersecretkey123"
       DB_HOST: postgres
       DBT_PROFILES_DIR: /opt/airflow/config/dbt
+      DBT_LOG_PATH: /tmp/dbt-logs
     volumes:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
