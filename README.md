@@ -3,7 +3,7 @@
 [![GitHub](https://img.shields.io/badge/GitHub-Lucaslssoares-181717?style=flat&logo=github)](https://github.com/Lucaslssoares)
 [![Gmail](https://img.shields.io/badge/Gmail-solareslucas@gmail.com-D14836?style=flat&logo=gmail)](mailto:solareslucas@gmail.com)
 
-Projeto de orquestração e transformação de dados com Airflow e dbt, integrado ao Airbyte Cloud e ao PostgreSQL.
+Projeto de orquestração e transformação de dados com **Airflow 3.2.2** e dbt, integrado ao Airbyte Cloud e ao PostgreSQL.
 
 ---
 
@@ -11,8 +11,8 @@ Projeto de orquestração e transformação de dados com Airflow e dbt, integrad
 
 O repositório concentra a camada de orquestração e transformação da pilha:
 
-- **Airflow** para orquestrar os pipelines ELT
-- **Airbyte Cloud** para sincronizar dados de origem via API externa
+- **Airflow 3.2.2** para orquestrar os pipelines ELT
+- **Airbyte Cloud** para ingestão de dados no PostgreSQL via conectores prontos (fontes externas, SaaS, APIs)
 - **dbt** para modelagem, testes e publicação das camadas analíticas (Bronze → Silver → Gold)
 - **PostgreSQL** como destino das cargas brutas e das tabelas transformadas
 - **pgAdmin** como interface visual para consulta e auditoria do banco
@@ -40,23 +40,25 @@ Consulte `config/pipeline_config.py` para configurar cada domínio.
 ## Arquitetura
 
 ```
-Sistemas de Origem (API REST)
-          |
-          v
-   Python Extract (src/)
-          |
-          v
- PostgreSQL schema: bronze      ← carga bruta via Airflow (flatten + metadata)
-          |
-          v
- dbt Silver (schema: silver)    ← limpeza, tipagem, padronização (views)
-          |
-          v
- dbt Gold (schema: gold)        ← agregações e métricas de negócio (tables)
-          |
-          v
-    Consumo Analítico
-  (pgAdmin / Airbyte Cloud / notebooks)
+Sistemas de Origem
+  ┌──────────────────────────┬────────────────────────────┐
+  │   API REST (Python)      │   Airbyte Cloud            │
+  │   src/extract_data.py    │   (fontes externas / SaaS) │
+  └──────────┬───────────────┴──────────────┬─────────────┘
+             └──────────────────────────────┘
+                              |
+                              v
+          PostgreSQL schema: bronze      ← carga bruta via Airflow (flatten + metadata)
+                              |
+                              v
+          dbt Silver (schema: silver)    ← limpeza, tipagem, padronização (views)
+                              |
+                              v
+          dbt Gold (schema: gold)        ← agregações e métricas de negócio (tables)
+                              |
+                              v
+                    Consumo Analítico
+                  (pgAdmin / notebooks)
 ```
 
 **Fluxo dentro de cada DAG:**
@@ -106,7 +108,7 @@ extract → load_bronze → dbt_silver → dbt_test_silver → dbt_gold → dbt_
 │       └── test_flatten.py
 ├── notebooks/
 │   └── analysis_data.ipynb      # Análise exploratória
-├── Dockerfile.airflow            # Airflow + dbt-postgres instalado
+├── Dockerfile.airflow            # Airflow 3.2.2 + dbt-postgres instalado
 ├── docker-compose.yaml
 ├── main.py                       # Execução local sem Docker
 ├── pyproject.toml
@@ -137,6 +139,9 @@ cp .env.example config/.env
 ### 3. Preencha os segredos no `.env`
 
 ```env
+# Gere com: python -c "import secrets; print(secrets.token_hex(32))"
+AIRFLOW__API__SECRET_KEY=sua_chave_gerada_aqui
+
 API_KEY=sua_chave_aqui
 
 DB_HOST=postgres
@@ -156,12 +161,14 @@ Use valores reais do seu ambiente. **Não publique esse arquivo.**
 docker compose up --build
 ```
 
-O `--build` é necessário apenas na primeira execução para instalar o dbt na imagem do Airflow.
+O `--build` é necessário apenas na primeira execução para construir a imagem com o dbt.
 
 ### 5. Recupere a senha do Airflow
 
+A senha é gerada automaticamente e impressa nos logs na primeira inicialização:
+
 ```bash
-docker exec airflow-weather-pipeline-airflow-1 cat /opt/airflow/standalone_admin_password.txt
+docker compose logs airflow | grep "Password for user"
 ```
 
 Acesse em **http://localhost:8080** com usuário `admin`.
@@ -184,7 +191,7 @@ O dbt está instalado dentro do container do Airflow — use-o para execução m
 
 ```bash
 # Atalho: define a variável para não repetir flags em todo comando
-DBT="docker exec airflow-weather-pipeline-airflow-1 dbt \
+DBT="docker exec modern-data-stack-airflow-1 dbt \
   --project-dir /opt/airflow/dbt \
   --profiles-dir /opt/airflow/config/dbt"
 
@@ -321,14 +328,16 @@ git diff --cached | grep -i -E "(password|secret|token|api_key\s*=\s*['\"][^'\"]
 **DAG não carrega no Airflow**
 
 ```bash
-docker exec airflow-weather-pipeline-airflow-1 airflow dags list
-docker exec airflow-weather-pipeline-airflow-1 airflow dags report
+docker exec modern-data-stack-airflow-1 airflow dags list
+docker exec modern-data-stack-airflow-1 airflow dags report
 ```
 
 **dbt não conecta ao banco**
 
 ```bash
-docker exec airflow-weather-pipeline-dbt-1 dbt debug
+docker exec modern-data-stack-airflow-1 dbt debug \
+  --project-dir /opt/airflow/dbt \
+  --profiles-dir /opt/airflow/config/dbt
 # Verifique se DB_PASSWORD está definido em config/.env
 ```
 
@@ -338,8 +347,8 @@ docker exec airflow-weather-pipeline-dbt-1 dbt debug
 # Linux/Mac
 chmod -R u+rwX dbt/target dbt/dbt_packages
 
-# Windows — recriar os diretórios
-docker exec airflow-weather-pipeline-dbt-1 rm -rf /usr/app/target /usr/app/dbt_packages
+# Windows — recriar os diretórios via container
+docker exec modern-data-stack-airflow-1 rm -rf /opt/airflow/dbt/target /opt/airflow/dbt/dbt_packages
 ```
 
 **Resetar tudo do zero**
@@ -352,6 +361,6 @@ docker compose up --build
 **Ver logs de um container**
 
 ```bash
-docker logs airflow-weather-pipeline-airflow-1 --tail 50 -f
-docker logs airflow-weather-pipeline-dbt-1     --tail 50 -f
+docker compose logs airflow --tail 50 -f
+docker compose logs postgres --tail 50 -f
 ```
