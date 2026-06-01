@@ -14,8 +14,8 @@ O repositório concentra a camada de orquestração e transformação da pilha:
 - **Airflow 3.2.2** para orquestrar os pipelines ELT
 - **Airbyte Cloud** para ingestão de dados no PostgreSQL via conectores prontos (fontes externas, SaaS, APIs)
 - **dbt** para modelagem, testes e publicação das camadas analíticas (Bronze → Silver → Gold)
-- **PostgreSQL** como destino das cargas brutas e das tabelas transformadas
-- **pgAdmin** como interface visual para consulta e auditoria do banco
+
+> PostgreSQL, pgAdmin e n8n são serviços **compartilhados** — vivem em `../infra/` e servem todos os projetos de estudo. Este repositório conecta-se a essa infra via rede Docker `projetos_shared`.
 
 > **Importante:** segredos e credenciais devem ficar apenas em arquivos locais (ex.: `config/.env`), nunca versionados no GitHub.
 
@@ -76,10 +76,8 @@ extract → load_bronze → dbt_silver → dbt_test_silver → dbt_gold → dbt_
 ├── config/
 │   ├── pipeline_config.py       # Configuração central: DAG, API, schemas, tabelas
 │   ├── .env                     # Segredos locais (não versionado)
-│   ├── dbt/
-│   │   └── profiles.yml         # Perfil dbt → PostgreSQL (lê variáveis de ambiente)
-│   └── pgadmin/
-│       └── servers.json         # Conexão automática do pgAdmin
+│   └── dbt/
+│       └── profiles.yml         # Perfil dbt → PostgreSQL (lê variáveis de ambiente)
 ├── dags/
 │   └── etl_dag.py               # DAG genérica: extract → bronze → silver → gold
 ├── src/
@@ -109,7 +107,7 @@ extract → load_bronze → dbt_silver → dbt_test_silver → dbt_gold → dbt_
 ├── notebooks/
 │   └── analysis_data.ipynb      # Análise exploratória
 ├── Dockerfile.airflow            # Airflow 3.2.2 + dbt-postgres instalado
-├── docker-compose.yaml
+├── docker-compose.yaml           # Apenas Airflow — conecta à rede projetos_shared (infra/)
 ├── main.py                       # Execução local sem Docker
 ├── pyproject.toml
 ├── .env.example
@@ -123,6 +121,11 @@ extract → load_bronze → dbt_silver → dbt_test_silver → dbt_gold → dbt_
 ### 1. Pré-requisitos
 
 - Docker Desktop instalado e em execução
+- **Infra compartilhada em execução** — suba `../infra/` antes deste projeto:
+  ```bash
+  cd ../infra
+  docker compose up -d
+  ```
 - Acesso à API que será consumida (definida em `config/pipeline_config.py`)
 - Credenciais e variáveis definidas apenas localmente
 
@@ -155,13 +158,13 @@ LOG_LEVEL=INFO
 
 Use valores reais do seu ambiente. **Não publique esse arquivo.**
 
-### 4. Suba os containers
+### 4. Suba o Airflow
 
 ```bash
 docker compose up --build
 ```
 
-O `--build` é necessário apenas na primeira execução para construir a imagem com o dbt.
+O `--build` é necessário apenas na primeira execução para construir a imagem com o dbt. A infra (`../infra/`) deve estar rodando antes.
 
 ### 5. Recupere a senha do Airflow
 
@@ -302,7 +305,7 @@ O guia operacional detalhado do dbt está em `dbt/dbt_project.yml` e nos arquivo
 - O arquivo `config/.env` é local e **não deve ser versionado**
 - Arquivos de infraestrutura devem ler credenciais por variável de ambiente — sem hardcode no repositório
 - O perfil usado pelas tasks dbt do Airflow é `config/dbt/profiles.yml` (lê do `.env` via `env_var()`)
-- O arquivo `config/dbt/profiles.yml` serve tanto para o container dbt (desenvolvimento) quanto para o Airflow (produção automatizada)
+- PostgreSQL, pgAdmin e n8n estão em `../infra/` — este projeto conecta-se a eles via rede Docker `projetos_shared`
 - Para execução local fora do Docker, use `main.py` — ele resolve os paths automaticamente
 - O schema `bronze` é criado pelo Python (`load_data.py`); os schemas `silver` e `gold` são criados automaticamente pelo dbt
 
@@ -351,16 +354,33 @@ chmod -R u+rwX dbt/target dbt/dbt_packages
 docker exec modern-data-stack-airflow-1 rm -rf /opt/airflow/dbt/target /opt/airflow/dbt/dbt_packages
 ```
 
-**Resetar tudo do zero**
+**Resetar só o Airflow**
 
 ```bash
-docker compose down -v
+docker compose down
 docker compose up --build
 ```
 
-**Ver logs de um container**
+**Resetar tudo (incluindo dados do banco)**
 
 ```bash
+# Para o Airflow
+docker compose down
+
+# Na pasta infra — apaga volumes (perde todos os dados)
+cd ../infra
+docker compose down -v
+docker compose up -d
+```
+
+**Ver logs**
+
+```bash
+# Airflow
 docker compose logs airflow --tail 50 -f
+
+# Postgres e n8n — rodar na pasta infra/
+cd ../infra
 docker compose logs postgres --tail 50 -f
+docker compose logs n8n --tail 50 -f
 ```
