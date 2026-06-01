@@ -10,6 +10,12 @@ services:
       - postgres-db-volume:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
     networks:
       - etl_network
 
@@ -18,15 +24,15 @@ services:
       context: .
       dockerfile: Dockerfile.airflow
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     user: "50000:0"
     env_file:
-      - config/.env          # expõe DB_PASSWORD e API_KEY como variáveis de ambiente reais (necessário para o dbt)
+      - config/.env          # expõe DB_PASSWORD, API_KEY e AIRFLOW__WEBSERVER__SECRET_KEY (necessário para o dbt)
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-      AIRFLOW__WEBSERVER__SECRET_KEY: "supersecretkey123"
       DB_HOST: postgres
       DBT_PROFILES_DIR: /opt/airflow/config/dbt
       DBT_LOG_PATH: /tmp/dbt-logs
