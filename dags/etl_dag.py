@@ -44,33 +44,54 @@ _DBT_TEST_CMD = (
 )
 def medallion_pipeline():
     """
-    Pipeline ELT com arquitetura Medallion.
+    Pipeline ELT com arquitetura Medallion — dados Open-Meteo (ERA5/ICON).
 
     Fluxo:
         extract → bronze (Python) → silver (dbt) → gold (dbt)
 
     Camadas:
-        Bronze : dados brutos da API, sem transformação
+        Bronze : dados brutos da API Open-Meteo, sem transformação
         Silver : dados limpos, tipados e padronizados (dbt views)
-        Gold   : métricas e agregações para análise (dbt tables)
+        Gold   : métricas diárias e mensais para análise (dbt tables)
     """
 
     # ── EXTRACT ──────────────────────────────────────────────────────────────
     @task
     def extract():
-        from dotenv import load_dotenv
-        load_dotenv("/opt/airflow/config/.env")
-        api_key = os.getenv("API_KEY")
-        if not api_key:
-            raise ValueError("API_KEY não encontrada em config/.env")
-        url = cfg.API_BASE_URL.format(api_key=api_key)
-        extract_data(url, output_path=cfg.RAW_DATA_PATH)
+        import time
+        from datetime import date, timedelta
+
+        hoje  = date.today()
+        ontem = hoje - timedelta(days=1)
+
+        for i, loc in enumerate(cfg.LOCATIONS):
+            url = (
+                f"{cfg.OPENMETEO_ARCHIVE_URL}"
+                f"?latitude={loc['latitude']}"
+                f"&longitude={loc['longitude']}"
+                f"&start_date={ontem.strftime('%Y-%m-%d')}"
+                f"&end_date={hoje.strftime('%Y-%m-%d')}"
+                f"&hourly={cfg.OPENMETEO_VARIABLES}"
+                f"&timezone={cfg.OPENMETEO_TIMEZONE}"
+                f"&wind_speed_unit=ms"
+            )
+            output_path = str(cfg.DATA_DIR / f"raw_openmeteo_{loc['nome']}.json")
+            extract_data(url, output_path=output_path)
+            if i < len(cfg.LOCATIONS) - 1:
+                time.sleep(1)
 
     # ── BRONZE (Load) ─────────────────────────────────────────────────────────
     @task
     def load_bronze():
-        df = flatten_to_bronze(cfg.RAW_DATA_PATH)
-        load_data(cfg.BRONZE_TABLE, df, schema=cfg.BRONZE_SCHEMA)
+        import pandas as pd
+
+        dfs = []
+        for loc in cfg.LOCATIONS:
+            raw_path = str(cfg.DATA_DIR / f"raw_openmeteo_{loc['nome']}.json")
+            df = flatten_to_bronze(raw_path, source_name=f"openmeteo_{loc['nome']}")
+            dfs.append(df)
+        df_all = pd.concat(dfs, ignore_index=True)
+        load_data(cfg.BRONZE_TABLE, df_all, schema=cfg.BRONZE_SCHEMA)
 
     # ── SILVER (dbt) ─────────────────────────────────────────────────────────
     dbt_silver = BashOperator(

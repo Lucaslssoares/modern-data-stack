@@ -1,27 +1,31 @@
 version: 2
 
-# =============================================================================
-# CAMADA BRONZE — dados brutos carregados pelo Airflow
-# Não há modelos SQL aqui: o Airflow carrega diretamente via Python (to_sql).
-# Esta declaração torna o bronze visível para as camadas Silver do dbt.
-# =============================================================================
+# CAMADA BRONZE — dados brutos carregados pelo Airflow via Python (to_sql).
+# Fonte: Open-Meteo API (ERA5/ICON) — gratuita, sem token.
 
 sources:
   - name: bronze
     schema: bronze
-    description: "Dados brutos vindos diretamente da API, sem transformação."
+    description: "Dados horários da Open-Meteo (ERA5/ICON) para o ponto Tomé-Açu/PA."
 
     tables:
-      - name: raw_source
+      - name: raw_openmeteo
         description: >
-          Tabela raw principal. Renomear para raw_<tema> ao definir o domínio.
-          Contém todos os campos retornados pela API + metadados de carga.
+          Uma linha por hora para o ponto lat=-2.42, lon=-48.15.
+          Formato columnar da API convertido para tabular pelo flatten_data.py.
         columns:
           - name: _loaded_at
             description: "Timestamp UTC de quando o registro foi carregado."
           - name: _source
-            description: "Identificador da fonte (ex: openweather, erp, sensor)."
-        # Adicione testes e mais colunas ao definir o tema:
-        # tests:
-        #   - not_null:
-        #       column_name: _loaded_at
+            description: "Identificador da fonte (openmeteo)."
+          - name: time
+            description: "Timestamp ISO 8601 da medição horária."
+          - name: latitude
+            description: "Latitude do ponto geográfico."
+          - name: longitude
+            description: "Longitude do ponto geográfico."
+        tests:
+          - not_null:
+              column_name: _loaded_at
+          - not_null:
+              column_name: time

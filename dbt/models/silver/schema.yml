@@ -1,18 +1,49 @@
 version: 2
 
 models:
-  - name: stg_template
+  - name: stg_openmeteo
     description: >
-      Camada Silver — dados do Bronze limpos, tipados e padronizados.
-      Renomear para stg_<tema> ao definir o domínio.
+      Camada Silver — dados horários da Open-Meteo (ERA5/ICON) limpos e tipados.
+      Ponto geográfico: Tomé-Açu/PA (lat=-2.42, lon=-48.15).
+      Grão: 1 linha por hora.
     columns:
       - name: _loaded_at
-        description: "Timestamp de carga herdado do Bronze."
+        description: "Timestamp UTC de carga herdado do Bronze."
       - name: _source
-        description: "Identificador da fonte herdado do Bronze."
-    # Adicionar testes ao definir colunas do tema:
-    # tests:
-    #   - unique:
-    #       column_name: registro_id
-    #   - not_null:
-    #       column_name: registro_id
+        description: "Identificador da fonte (openmeteo)."
+      - name: medido_em
+        description: "Timestamp completo da medição (hora cheia)."
+        tests:
+          - not_null
+      - name: data_medicao
+        description: "Data da medição."
+        tests:
+          - not_null
+      - name: hora
+        description: "Hora da medição (0–23)."
+      - name: latitude
+        description: "Latitude do ponto geográfico."
+      - name: longitude
+        description: "Longitude do ponto geográfico."
+      - name: elevacao_m
+        description: "Elevação do ponto em metros."
+      - name: temperatura_c
+        description: "Temperatura a 2m de altura (°C)."
+      - name: temperatura_sensacao_c
+        description: "Temperatura de sensação térmica (°C)."
+      - name: chuva_mm
+        description: "Precipitação na hora (mm)."
+      - name: umidade_pct
+        description: "Umidade relativa a 2m (%)."
+      - name: orvalho_c
+        description: "Ponto de orvalho (°C)."
+      - name: vento_velocidade_ms
+        description: "Velocidade do vento a 10m (m/s)."
+      - name: vento_rajada_ms
+        description: "Rajada do vento a 10m (m/s)."
+      - name: vento_direcao_graus
+        description: "Direção do vento (0–360°)."
+      - name: pressao_mb
+        description: "Pressão ao nível do mar (hPa = mbar)."
+      - name: radiacao_wm2
+        description: "Radiação solar de ondas curtas (W/m²)."

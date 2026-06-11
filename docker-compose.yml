@@ -1,0 +1,40 @@
+services:
+
+  airflow:
+    image: apache/airflow:3.2.2
+    command: standalone
+    environment:
+      # Banco de metadados — usa o PostgreSQL da infra (rede compartilhada)
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW_HOME: /opt/airflow
+
+      # Pacotes instalados na inicialização do container
+      _PIP_ADDITIONAL_REQUIREMENTS: >-
+        dbt-postgres==1.9.1
+        python-dotenv
+        requests
+        pandas
+        sqlalchemy
+        psycopg2-binary
+    env_file:
+      - config/.env
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./src:/opt/airflow/src
+      - ./config:/opt/airflow/config
+      - ./dbt:/opt/airflow/dbt
+      - ./logs:/opt/airflow/logs
+      - ./data:/opt/airflow/data
+      - ./scripts:/opt/airflow/scripts
+    ports:
+      - "8080:8080"
+    networks:
+      - projetos_shared
+    restart: unless-stopped
+
+networks:
+  projetos_shared:
+    external: true        # criada pelo docker-compose da pasta infra/
+    name: projetos_shared

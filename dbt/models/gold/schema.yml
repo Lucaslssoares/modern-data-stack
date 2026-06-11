@@ -1,9 +1,55 @@
 version: 2
 
 models:
-  - name: fct_template
+  - name: fct_clima_diario
     description: >
-      Camada Gold — agregações e métricas do domínio prontas para consumo.
-      Renomear para fct_<tema> ou dim_<tema> ao definir o domínio.
-    columns: []
-    # Adicionar colunas e testes ao implementar o modelo.
+      Agregações diárias de clima — Open-Meteo ERA5/ICON.
+      Grão: 1 linha por dia. Base para fct_clima_mensal.
+    columns:
+      - name: data_medicao
+        description: "Data de referência."
+        tests:
+          - not_null
+      - name: temperatura_media_c
+        description: "Temperatura média diária (°C)."
+      - name: temperatura_max_c
+        description: "Temperatura máxima do dia (°C)."
+      - name: temperatura_min_c
+        description: "Temperatura mínima do dia (°C)."
+      - name: chuva_total_mm
+        description: "Precipitação total acumulada no dia (mm)."
+      - name: umidade_media_pct
+        description: "Umidade relativa média diária (%)."
+      - name: vento_rajada_max_ms
+        description: "Rajada máxima do vento no dia (m/s)."
+      - name: radiacao_total_wm2
+        description: "Radiação solar total acumulada no dia (W/m²)."
+      - name: horas_com_dados
+        description: "Horas com dados recebidos (máx 24)."
+
+  - name: fct_clima_mensal
+    description: >
+      Agregações mensais de clima com janelas deslizantes de chuva.
+      Grão: 1 linha por mês.
+      Contém chuva acumulada de 3, 6 e 12 meses, balanço hídrico e status de alerta.
+    columns:
+      - name: mes
+        description: "Primeiro dia do mês de referência."
+        tests:
+          - not_null
+      - name: chuva_total_mm
+        description: "Precipitação total do mês (mm)."
+      - name: chuva_acum_3m_mm
+        description: "Chuva acumulada nos últimos 3 meses."
+      - name: chuva_acum_6m_mm
+        description: "Chuva acumulada nos últimos 6 meses."
+      - name: chuva_acum_12m_mm
+        description: "Chuva acumulada nos últimos 12 meses."
+      - name: balanco_hidrico_mm
+        description: "Chuva − ETP estimada (120 mm/mês)."
+      - name: status_hidrico
+        description: "'CRÍTICO' (< 80mm), 'ATENÇÃO' (< 120mm) ou 'NORMAL'."
+      - name: desvio_vs_media_12m_pct
+        description: "Desvio percentual do mês vs. média histórica 12 meses."
+      - name: dias_com_dados
+        description: "Dias com dados no mês."
