@@ -1,0 +1,23 @@
+replicaCount: 2
+
+image:
+  repository: ghcr.io/lucaslssoares/clima-api
+  tag: latest            # o pipeline sobrescreve com o SHA do commit
+  pullPolicy: IfNotPresent
+
+service:
+  type: NodePort
+  port: 8000
+  nodePort: 30080        # mapeado para localhost:30080 em kind-config.yaml
+
+# Banco onde estão as tabelas gold (por padrão, o Postgres da pasta infra/ no host)
+db:
+  host: host.docker.internal
+  port: "5432"
+  name: airflow
+  user: airflow
+  password: airflow
+
+resources:
+  requests: { cpu: 50m, memory: 64Mi }
+  limits:   { cpu: 250m, memory: 256Mi }

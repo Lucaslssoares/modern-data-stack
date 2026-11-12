@@ -1,0 +1,6 @@
+apiVersion: v2
+name: clima-api
+description: API de consulta à camada Gold do pipeline Open-Meteo
+type: application
+version: 0.1.0
+appVersion: "latest"

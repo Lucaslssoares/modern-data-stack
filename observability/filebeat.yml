@@ -1,0 +1,28 @@
+# Autodiscover: o Filebeat escuta eventos do Docker e, para cada container
+# cujo nome contém "clima-api", abre um input que lê o arquivo de log JSON
+# gerado pelo Docker em /var/lib/docker/containers/<id>/<id>-json.log.
+filebeat.autodiscover:
+  providers:
+    - type: docker
+      templates:
+        - condition:
+            contains:
+              docker.container.name: clima-api
+          config:
+            - type: filestream
+              id: clima-api-${data.docker.container.id}
+              paths:
+                - /var/lib/docker/containers/${data.docker.container.id}/*.log
+              parsers:
+                - container: ~          # desembrulha o formato json-file do Docker
+                - ndjson:               # cada linha da API já é um JSON
+                    target: ""
+                    overwrite_keys: true
+                    expand_keys: true   # "http.response.status_code" -> objeto aninhado
+                    add_error_key: true
+
+processors:
+  - add_docker_metadata: ~
+
+output.elasticsearch:
+  hosts: ["http://elasticsearch:9200"]

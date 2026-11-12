@@ -1,0 +1,80 @@
+name: CI/CD clima-api
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  IMAGE: ghcr.io/lucaslssoares/clima-api
+
+jobs:
+  # 1. Testes automatizados (pipeline + API)
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync --extra dev
+      - run: uv run pytest -v
+
+  # 2. Build da imagem Docker + push para o GitHub Container Registry
+  build:
+    needs: test
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: api
+          push: true
+          build-args: APP_VERSION=${{ github.sha }}
+          tags: |
+            ${{ env.IMAGE }}:${{ github.sha }}
+            ${{ env.IMAGE }}:latest
+
+  # 3. Deploy automático via Helm em um cluster Kubernetes (Kind) + smoke test
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: helm/kind-action@v1
+        with:
+          cluster_name: devops
+          config: helm/kind-config.yaml
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Carregar a imagem publicada no cluster
+        run: |
+          docker pull $IMAGE:${{ github.sha }}
+          kind load docker-image $IMAGE:${{ github.sha }} --name devops
+      - name: helm upgrade --install
+        run: |
+          helm upgrade --install clima-api helm/clima-api \
+            --set image.tag=${{ github.sha }} \
+            --set image.pullPolicy=Never \
+            --wait --timeout 3m
+      - name: Smoke test no NodePort
+        run: |
+          kubectl get pods,svc -l app=clima-api -o wide
+          kubectl get svc clima-api
+          curl -fsS http://localhost:30080/health | tee health.json
+          grep -q "${{ github.sha }}" health.json

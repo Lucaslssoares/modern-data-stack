@@ -1,0 +1,60 @@
+# Elastic Stack de laboratório (sem segurança/TLS) + clima-api gerando logs.
+#   docker compose -f observability/docker-compose.yml up -d --build
+#   Kibana: http://localhost:5601   API: http://localhost:8000
+services:
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.0
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      retries: 20
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.17.0
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  # Beat que lê os logs (stdout) dos containers e envia ao Elasticsearch
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.17.0
+    user: root
+    command: ["filebeat", "-e", "--strict.perms=false"]
+    volumes:
+      - ./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  clima-api:
+    build: ../api
+    env_file:
+      - ../config/.env           # DB_HOST=postgres (Postgres da pasta infra/)
+    ports:
+      - "8000:8000"
+    networks:
+      - default
+      - projetos_shared
+
+volumes:
+  es-data:
+
+networks:
+  projetos_shared:
+    external: true
+    name: projetos_shared
