@@ -4,7 +4,7 @@ Camada de DevOps adicionada sobre o pipeline ELT (Airflow + dbt + PostgreSQL).
 A aplicação entregue é a **clima-api** (FastAPI), que publica os dados da camada Gold
 (`gold.fct_clima_diario` e `gold.fct_clima_mensal`) via HTTP.
 
-**Equipe:** Lucas Soares · Alan Leão (alan.leao@icen.ufpa.br)
+**Equipe:** Lucas Soares Vilhena · Alan dos Anjos Leão (alan.leao@icen.ufpa.br)
 
 ```
 Open-Meteo ─► Airflow (extract/bronze) ─► dbt (silver/gold) ─► PostgreSQL (../infra)

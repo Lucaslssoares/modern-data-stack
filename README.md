@@ -5,7 +5,7 @@
 
 Projeto de orquestração e transformação de dados com **Airflow 3.2.2** e dbt, integrado ao Airbyte Cloud e ao PostgreSQL.
 
-**Equipe:** Lucas Soares · Alan Leão ([alan.leao@icen.ufpa.br](mailto:alan.leao@icen.ufpa.br)) — camada DevOps (CI/CD, Kubernetes e Elastic Stack) documentada em [docs/DEVOPS.md](docs/DEVOPS.md).
+**Equipe:** Lucas Soares Vilhena · Alan dos Anjos Leão ([alan.leao@icen.ufpa.br](mailto:alan.leao@icen.ufpa.br)) — camada DevOps (CI/CD, Kubernetes e Elastic Stack) documentada em [docs/DEVOPS.md](docs/DEVOPS.md).
 
 ---
 
