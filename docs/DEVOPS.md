@@ -101,6 +101,13 @@ Abra http://localhost:5601/app/dashboards#/view/clima-api-dashboard (últimos 15
 Em outro Kibana, dá para importar só o arquivo: *Stack Management → Saved Objects → Import →
 `observability/dashboard.ndjson`*.
 
+**Docker Desktop no Windows.** Se o dashboard ficar vazio (índice `filebeat-*` sem documentos), o driver de log
+padrão do Docker pode não estar gerando os arquivos `*-json.log` lidos pelo Filebeat. Suba a pilha com o
+arquivo adicional, que fixa o driver `json-file` na API e faz o Filebeat ler esses arquivos diretamente:
+```powershell
+docker compose -f observability/docker-compose.yml -f observability/compose.windows.yml up -d --build
+```
+
 ---
 
 ## Relatório

@@ -1,0 +1,11 @@
+# Ajuste para Docker Desktop no Windows: o driver de log padrao pode ser "local",
+# que nao gera os arquivos *-json.log lidos pelo Filebeat.
+services:
+  clima-api:
+    logging:
+      driver: json-file
+  filebeat:
+    volumes:
+      - ./filebeat.windows.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro

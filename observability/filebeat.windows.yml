@@ -1,0 +1,23 @@
+# Le diretamente os arquivos *-json.log e mantem apenas os eventos da clima-api.
+filebeat.inputs:
+  - type: filestream
+    id: docker-json-logs
+    paths:
+      - /var/lib/docker/containers/*/*-json.log
+    parsers:
+      - container: ~
+      - ndjson:
+          target: ""
+          overwrite_keys: true
+          expand_keys: true
+          add_error_key: true
+    processors:
+      - add_docker_metadata: ~
+      - drop_event:
+          when:
+            not:
+              contains:
+                container.name: clima-api
+
+output.elasticsearch:
+  hosts: ["http://elasticsearch:9200"]
